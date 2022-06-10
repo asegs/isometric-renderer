@@ -39,6 +39,10 @@ func permutePoint (point image.Point) image.Point {
 		Y: -1 * (point.Y * 20) + (point.X + point.Y) * (20 * 0.5 ) + offsetY,
 	}
 }
+
+func drawAtCoord (onto  *image.RGBA, from image.Image, x int, y int, bounds image.Rectangle) {
+	draw.Draw(onto,bounds,from,permutePoint(image.Point{x,y}),draw.Over)
+}
 func main () {
 	topLeft := image.Point{0, 0}
 	bottomRight := image.Point{width, height}
@@ -77,6 +81,17 @@ func main () {
 		return
 	}
 
+	red,err := getImageFromFilePath("assets/red.png")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	x := 0
+	y := 0
+
+
+
 	r := image.Rectangle{
 		Min: image.Point{0,0},
 		Max: image.Point{width,height},
@@ -91,7 +106,7 @@ func main () {
 	for col := 19 ; col >= 0 ; col -- {
 		for row := 0 ; row < 20 ; row ++ {
 			fromTable,_ := strconv.Atoi(string(table[row][col]))
-			draw.Draw(rgbaImage,r,textures[fromTable],permutePoint(image.Point{col,row}),draw.Over)
+			drawAtCoord(rgbaImage,textures[fromTable],col,row,r)
 		}
 	}
 	canvasToWrite := canvas.NewRasterFromImage(rgbaImage)
@@ -99,15 +114,31 @@ func main () {
 	imageWindow.SetContent(canvasToWrite)
 	imageWindow.Resize(fyne.NewSize(float32(width), float32(height)))
 
-	//go func() {
-	//	pos := 0
-	//	for true {
-	//		drawImageRed(pos)
-	//		pos ++
-	//		canvas.Refresh(canvasToWrite)
-	//		time.Sleep(time.Duration(1000 / fps) * time.Millisecond)
-	//	}
-	//}()
+	imageWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
+		fmt.Println(event.Name)
+		newX := x
+		newY := y
+		switch event.Name {
+		case "Left":
+			newX--
+			break
+		case "Right":
+			newX++
+			break
+		case "Up":
+			newY--
+			break
+		case "Down":
+			newY++
+			break
+		}
+		fromTable,_ := strconv.Atoi(string(table[y][x]))
+		drawAtCoord(rgbaImage,textures[fromTable],x,y,r)
+		drawAtCoord(rgbaImage,red,newX,newY,r)
+		x = newX
+		y = newY
+		canvas.Refresh(canvasToWrite)
+	})
 
 	imageWindow.ShowAndRun()
 }
