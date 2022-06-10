@@ -1,0 +1,4 @@
+-Handle interactives
+-Draw taller tiles (above limit)
+-Enable zoom
+-Smart redraw that automatically will not overwrite tile below
