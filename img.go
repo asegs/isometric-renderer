@@ -11,13 +11,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var width = 1920
 var height = 1080
-
-var lineWidth = 100
-var fps = 3
 
 func getImageFromFilePath(filePath string) (image.Image, error) {
 	f, err := os.Open(filePath)
@@ -43,6 +41,19 @@ func permutePoint (point image.Point) image.Point {
 func drawAtCoord (onto  *image.RGBA, from image.Image, x int, y int, bounds image.Rectangle) {
 	draw.Draw(onto,bounds,from,permutePoint(image.Point{x,y}),draw.Over)
 }
+
+func lookupToNumber ( lookup []string) [][]int {
+	result := make([][]int, len(lookup))
+	for row := 0 ; row < len(lookup) ; row ++ {
+		list := make([]int,len(lookup[0]))
+		for col := 0 ; col < len(lookup[0]) ; col ++ {
+			list[col],_ = strconv.Atoi(string(lookup[row][col]))
+		}
+		result[row] = list
+	}
+	return result
+}
+
 func main () {
 	topLeft := image.Point{0, 0}
 	bottomRight := image.Point{width, height}
@@ -87,6 +98,18 @@ func main () {
 		return
 	}
 
+	fire1,err := getImageFromFilePath("assets/fire1.png")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	fire2, err := getImageFromFilePath("assets/fire2.png")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
 	x := 0
 	y := 0
 
@@ -103,13 +126,43 @@ func main () {
 	textures[2] = trees
 	textures[3] = sand
 
+	lookupTable := lookupToNumber(table)
+
 	for col := 19 ; col >= 0 ; col -- {
 		for row := 0 ; row < 20 ; row ++ {
-			fromTable,_ := strconv.Atoi(string(table[row][col]))
-			drawAtCoord(rgbaImage,textures[fromTable],col,row,r)
+			fromTable := lookupTable[row][col]
+			drawAtCoord(rgbaImage,textures[fromTable % len(textures)],col,row,r)
 		}
 	}
+
+	fires := make([][]bool,len(lookupTable))
+	for i := 0 ; i < len(lookupTable) ; i ++ {
+		fires[i] = make([]bool, len(lookupTable[0]))
+	}
+
+
 	canvasToWrite := canvas.NewRasterFromImage(rgbaImage)
+
+	go func() {
+		playFirst := true
+		for true {
+			for row := 0 ; row < len(lookupTable) ; row ++ {
+				for col := 0 ; col < len(lookupTable[0]) ; col ++ {
+					if fires[row][col] {
+						drawAtCoord(rgbaImage,textures[lookupTable[row][col] % len(textures)],col,row,r)
+						if playFirst {
+							drawAtCoord(rgbaImage,fire1,col,row,r)
+						}else {
+							drawAtCoord(rgbaImage,fire2,col,row,r)
+						}
+					}
+				}
+			}
+			playFirst = !playFirst
+			canvas.Refresh(canvasToWrite)
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
 
 	imageWindow.SetContent(canvasToWrite)
 	imageWindow.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -118,25 +171,52 @@ func main () {
 		fmt.Println(event.Name)
 		newX := x
 		newY := y
+		drawNew := false
 		switch event.Name {
 		case "Left":
-			newX--
+			if x > 0 {
+				newX--
+			}
 			break
 		case "Right":
-			newX++
+			if x < len(lookupTable[0]) - 1 {
+				newX++
+			}
 			break
 		case "Up":
-			newY--
+			if y > 0 {
+				newY--
+			}
 			break
 		case "Down":
-			newY++
+			if y < len(lookupTable) - 1 {
+				newY++
+			}
+			break
+		case "Space":
+			drawNew = true
 			break
 		}
-		fromTable,_ := strconv.Atoi(string(table[y][x]))
-		drawAtCoord(rgbaImage,textures[fromTable],x,y,r)
-		drawAtCoord(rgbaImage,red,newX,newY,r)
-		x = newX
-		y = newY
+		if event.Name == "Q" {
+			fires[y][x] = !fires[y][x]
+			if fires[y][x] {
+				drawAtCoord(rgbaImage,fire1,newX,newY,r)
+			}else {
+				drawAtCoord(rgbaImage,textures[lookupTable[newY][newX] % len(textures)],newX,newY,r)
+			}
+		} else {
+			drawAtCoord(rgbaImage, textures[lookupTable[y][x]%len(textures)], x, y, r)
+			if fires[y][x] {
+				drawAtCoord(rgbaImage,fire1,x,y,r)
+			}
+			if drawNew {
+				lookupTable[newY][newX]++
+				drawAtCoord(rgbaImage, textures[lookupTable[newY][newX]%len(textures)], newX, newY, r)
+			}
+			drawAtCoord(rgbaImage, red, newX, newY, r)
+			x = newX
+			y = newY
+		}
 		canvas.Refresh(canvasToWrite)
 	})
 
